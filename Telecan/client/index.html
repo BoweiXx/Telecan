@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"> </script>
+    <script src="/socket.io/socket.io.js"></script>
+    <title>Telecan</title>
+    <style>
+        @font-face {
+            font-family: "funfont";
+            src: url("./assets/font/VariusFontBold.woff2") format("woff2"),
+                url("./assets/font/VariusFontBold.woff") format("woff");
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        #app {
+            font-family: funfont;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-align: center;
+            color: #2c3e50;
+            margin-top: 60px;
+        }
+
+        body {
+            background-color: #ddd;
+        }
+
+        #login-container {
+            margin-top: 15rem;
+        }
+
+        #login-header {
+            color: rgb(255, 125, 0);
+            font-size: 4rem;
+            margin: 2rem;
+        }
+
+        #login-textbox-container {
+            margin: 2rem;
+        }
+
+        #login-textbox {
+            text-align: center;
+            font-size: 2rem;
+            font-family: funfont;
+            color: black;
+            width: 20rem;
+            height: 3rem;
+            border: none;
+            border-radius: 0.3rem;
+            transition: ease-in 0.3s;
+        }
+
+        #topic-input {
+            text-align: center;
+            font-size: 2rem;
+            font-family: funfont;
+            color: black;
+            width: 30rem;
+            height: 3rem;
+            border: none;
+            border-radius: 0.3rem;
+            transition: ease-in 0.3s;
+        }
+
+        #topic-input:hover {
+            background-color: rgb(255, 125, 0);
+            color: white;
+            border-radius: 0.3rem;
+        }
+
+        #login-textbox:hover {
+            background-color: rgb(255, 125, 0);
+            color: white;
+            border-radius: 0.3rem;
+        }
+
+        #login-textbox:focus {
+            outline: none;
+        }
+
+        #login-button {
+            background-color: black;
+            width: 8rem;
+            height: 2.5rem;
+            font-family: funfont;
+            border: none;
+            color: white;
+            display: inline-block;
+            font-size: 2rem;
+            border-radius: 0.2rem;
+            transition: ease-out 0.5s;
+            box-shadow: inset 0 0 0 0 rgb(255, 125, 0);
+            outline: none;
+        }
+
+        #login-button:hover {
+            box-shadow: inset 8rem 0 0 0 rgb(255, 125, 0);
+            cursor: pointer;
+            color: #000;
+        }
+
+        #login-textbox:hover::placeholder {
+            color: white;
+        }
+
+        #main-lobby {
+            margin: 20rem;
+        }
+
+        li {
+            list-style: none;
+            /* position: relative; */
+            color: rgb(255, 125, 0);
+        }
+
+        ul {
+            padding: 0rem;
+        }
+
+        button {
+            margin-left: 0rem;
+            margin-right: 0rem;
+            margin-top: 0.5rem;
+            margin-bottom: 0.5rem;
+            background-color: #eee;
+            width: 6rem;
+            border-radius: 0.3rem;
+            height: 2rem;
+            font-family: funfont;
+            font-size: 1rem;
+            border: none;
+            box-shadow: inset 0 0 0 0 rgb(255, 125, 0);
+        }
+
+        #draw-canvas {
+            float: left;
+        }
+
+        button:hover {
+            background-color: rgb(255, 125, 0);
+            box-shadow: inset 15 15 15 15 rgb(255, 125, 0);
+            color: white;
+        }
+
+        #left-bar {
+            align-content: center;
+            width: 15rem;
+            float: left;
+        }
+
+        #right-bar {
+            width: 15rem;
+            float: left;
+        }
+
+        #submit-button {
+            background-color: rgb(255, 125, 0);
+        }
+
+        #input-box {
+            text-align: center;
+            font-size: 2rem;
+            font-family: funfont;
+            color: black;
+            width: 90rem;
+            height: 3rem;
+            border: none;
+            border-radius: 0.3rem;
+            transition: ease-in 0.3s;
+        }
+
+        #description-input {
+            text-align: center;
+            font-size: 2rem;
+            font-family: funfont;
+            color: black;
+            width: 90rem;
+            height: 3rem;
+            border: none;
+            border-radius: 0.3rem;
+            transition: ease-in 0.3s;
+        }
+    </style>
+
+</head>
+
+<body>
+    <div id="app">
+        <!-- Login -->
+        <div id="login-container" v-if="stage == 0">
+            <h1 id="login-header">TELECAN</h1>
+            <div id="login-textbox-container">
+                <input id="login-textbox" v-model="inputedUsername" @keyup.enter="updateUsername"
+                    placeholder="What is your name?" />
+            </div>
+            <div id="login-button-container">
+                <button id="login-button" @click="updateUsername">Enter</button>
+            </div>
+        </div>
+        <!-- Lobby -->
+        <div id="main-lobby" v-if="stage == 1">
+            <div id="user-list">
+                <h1>Current Users</h1>
+                <ul>
+                    <li v-for="user in currentUsers" :key="user.userID"> {{user.username}} </li>
+                </ul>
+            </div>
+            <button @click="sendStartGameMessage" v-if="isHost"> Start Game </button>
+        </div>
+        <!-- game -->
+        <div id="game" v-if="stage == 2">
+            <!-- Select topic -->
+            <div id="topic-session" v-if="gameState == 0">
+                <input id="topic-input" @keyup.enter="updateTopic" placeholder="Come up with sth"
+                    v-model="inputedTopic">
+                <button id="topic-button" @click="updateTopic">Submit!</button>
+            </div>
+            <!-- drawSession -->
+            <div id="draw-session" v-if="gameState == 1">   
+            <div v-if="description!= 0" style="font-size: 1.5rem;"> <span style="color:rgb(255, 125, 0)">please draw:</span> {{description}}</div>
+                
+               
+                <div id="left-bar">
+                    <ul role="toolbar">
+                        <li>
+                            <button :id="drawArray[0]" @click="getDrawType(drawArray[0])">
+                                Round
+                            </button>
+                        </li>
+                        <li>
+                            <button :id="drawArray[1]" @click="getDrawType(drawArray[1])">
+                                Square
+                            </button>
+                        </li>
+                        <li>
+                            <button :id="drawArray[2]" @click="getDrawType(drawArray[2])">
+                                Eraser
+                            </button>
+                        </li>
+                        <!--FIXME-->
+                        <!-- <li>
+                    <button id="undo" @click="undoLastDraw">Undo</button>
+                  </li> -->
+                    </ul>
+                </div>
+                <div id="canvas-container">
+
+                </div>
+                <div id="right-bar">
+                    <ul role="toolbar">
+                        <li id="pixel-list">
+                            <button id="pixel-selector" @click="pixelSelection">
+                                Thickness {{ drawToolkit.weight }}
+                            </button>
+                        </li>
+                        <li id="color-list">
+                            <button id="color-picker" @click="colorSelection">Color</button>
+                        </li>
+                        <li>
+                            <button id="delete-button" @click="clearCanvas">Clear</button>
+                        </li>
+                        <li>
+                            <button id="submit-button" @click="submitDrawing">Submit</button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <!-- description -->
+            <div id="describe-session" v-if="gameState == 2">
+                <input id="description-input" placeholder="Please Describe the Drawing!"
+                    @keyup.enter="updateDescription" v-model="inputedDescription">
+            </div>
+        </div>
+        <!-- result -->
+        <div id="result" v-if="stage == 3" v-for = "item in resultData" >
+            {{item.username}}
+            {{item.userID}}
+            {{item.topic}}
+            <div id = "result-list">
+
+            </div>
+        </div>
+    </div>
+    <script type="text/javascript" defer="true">
+        let drawInstance;
+        const app = new Vue({
+            el: "#app",
+            created() {
+                socket = io();
+            },
+            data: {
+                //global stuff
+                stage: 0,
+                currentUsers: [],
+                //login Stuff
+                inputedUsername: "",
+                userdata: {
+                    username: "",
+                    userID: ""
+                },
+                isHost: false,
+                //game stuff
+                sessionData: {
+                    sessionNum: undefined,
+                    timer: undefined
+                },
+                canvasData: document.getElementById("draw-canvas"),
+                inputedTopic: "",
+                inputedDescription: "",
+                drawArray: ["round", "square", "eraser"],
+                drawToolkit: {
+                    drawType: "",
+                    weight: 12,
+                    color: "#000",
+                },
+                topicList: [],
+                //DOM element state managers
+                pixelBarSliderShown: false,
+                colorBarSliderShown: false,
+                //drawing game stuff
+                // thisFrame: null, //deprecated, use drawInstance.track
+                description: 0,
+                gameState: 0,
+                timerDraw : 3000,
+                timerDescribe: 1000,
+                resultData : undefined,
+            },
+            methods: {
+                //Login
+                updateUsername(data) {
+                    if (!this.inputedUsername) {
+                        return;
+                    }
+                    this.userdata.username = this.inputedUsername;
+                    this.stage = 1;
+                    console.log(this.userdata);
+                    this.userdata.userID = socket.id;
+                    socket.emit("sendUsername", this.userdata);
+                },
+                //lobby
+                sendStartGameMessage() {
+                    this.stage = 2;
+                    socket.emit("startGame");
+                },
+
+                /****************************************game****************************/
+                getDrawType(e) {
+                    this.drawToolkit.drawType = e;
+                },
+                //pxiel btn
+                pixelSelection() {
+                    let pixelSlider;
+                    let list;
+                    if (!this.pixelBarSliderShown) {
+                        pixelSlider = document.createElement("input");
+                        list = document.getElementById("pixel-list");
+                        pixelSlider.type = "range";
+                        pixelSlider.id = "weight-slider";
+                        list.appendChild(pixelSlider);
+                        this.$mount(pixelSlider);
+                        this.pixelBarSliderShown = true;
+                        pixelSlider.addEventListener("click", () => {
+                            this.drawToolkit.weight = pixelSlider.value;
+                        });
+                        console.log(this.drawToolkit);
+                    } else {
+                        document
+                            .getElementById("pixel-list")
+                            .removeChild(document.getElementById("weight-slider"));
+                        this.pixelBarSliderShown = false;
+                    }
+                },
+                //color btn
+                colorSelection() {
+                    let colorDiv = document.getElementById("color-list");
+                    let colorSelector;
+                    if (!this.colorBarSliderShown) {
+                        let colorButton = document.getElementById("color-picker");
+                        colorSelector = document.createElement("input");
+                        colorSelector.type = "color";
+                        colorSelector.id = "temp-color-selector";
+                        colorDiv.appendChild(colorSelector);
+                        this.$mount(colorSelector);
+                        colorSelector.addEventListener("input", () => {
+                            this.drawToolkit.color = colorSelector.value;
+                            console.log(this.drawToolkit.color);
+                            colorButton.style.backgroundColor = this.drawToolkit.color;
+                        });
+                        this.colorBarSliderShown = true;
+                    } else {
+                        colorDiv.removeChild(document.getElementById("temp-color-selector"));
+                        this.colorBarSliderShown = false;
+                    }
+                },
+                clearCanvas() {
+                    drawInstance.clearCanvas();
+                    //   console.log(drawInstance.drawType); //for test purpose
+                },
+                submitDrawing() {
+                    this.gameState = 2;
+                    document.getElementById("canvas-container").removeChild(document.getElementById("draw-canvas"));
+                    this.$nextTick(function () {
+                        
+                        socket.emit("askForMore", {
+                            ready: true,
+                            type: "draw",
+                            image: drawInstance.track
+                        });
+                    })
+                },
+                updateDescription() {
+                    this.gameState = 1;
+                    this.$nextTick(() => {
+                        let canvas = document.createElement("canvas");
+                        canvas.id = "draw-canvas";
+                        canvas.width = 1280;
+                        canvas.height = 800;
+                        document
+                            .getElementById("canvas-container")
+                            .appendChild(canvas);
+                        drawInstance = new draw(this.drawToolkit);
+                    });
+                    socket.emit("askForMore", {
+                        ready: true,
+                        type: "text",
+                        description: this.inputedDescription
+                    })
+                    this.inputedDescription = "";
+                },
+                //when the game ends, pass the stage 3 to the parent node
+                updateTopic() {
+                    let topicData = {
+                        username: this.userdata.username,
+                        userID: this.userdata.userID,
+                        topic: this.inputedTopic
+                    }
+                    socket.emit("session", topicData);
+                    let tempText = document.createElement("p");
+                    tempText.id = "temp-text";
+                    tempText.innerHTML = "Waiting for other players to put in the topics..."
+                    document.getElementById("topic-session").appendChild(tempText);
+                },
+                listAllItems(data){
+                    let deconstructedResult = [];
+                    //converts the objects in the array to arrays
+                    if(typeof(data) == "Array"){
+                        data.forEach(element => {
+                             deconstructedResult.push(Object.keys(element).map((key)=> [
+                                 String(key), element[key]
+                             ]));
+                        });
+                    }else{
+                        alert("something goes wrong");
+                    }
+                    
+                },
+                parseImageData(data, canvas){
+                    let context = canvas.getContext("2d");
+                    data.forEach(element => {
+                        context.strokeStyle = element[2];
+                        context.lineWidth = element[3];
+                        switch (element[4]) {
+                            case "round":
+                                context.lineCap = "round";
+                                console.log(this.ctx.lineCap);
+                                break;
+                            case "square":
+                               context.lineCap = "butt";
+                                break;
+                            case "eraser":
+                                context.strokeStyle = "#FFFFFF";
+                                break;
+                            default:
+                                context.lineCap = "square";
+                                break;
+                        }
+                        //FIXME: figure out why seperate traces are still attached
+                        if (i > 0) {
+                            // skip the first point, would not make any diff
+                            if (!element[5]) {
+                                context.beginPath();
+                                console.log(this.drawType.weight);
+                                //previous point
+                                context.lineTo(context[0], context[1]);
+                                context.moveTo(context[0], context[1]);
+                                context.stroke();
+                                context.closePath();
+                            } else if (context[5] && i < context.length - 2) {
+                                //break point
+                                context.lineTo(context[0], context[1]);
+                                //take this out
+                                // this.ctx.moveTo(this.track[i + 1][0], this.track[i + 1][1]);
+                                context.stroke();
+                                context.closePath();
+                            }
+                        }
+                    });
+                }
+            },
+            mounted() {
+                //login
+                socket.on("updateUserList", function (data) {
+                    app.currentUsers = data;
+                    console.log(app.currentUsers);
+                    if (app.currentUsers.length === 1) {
+                        app.isHost = true;
+                    }
+                });
+                //lobby
+                socket.on("getGameData", function (data) {
+                    app.stage = 2;
+                    app.sessionData = data;//about how many sessions are there
+                    console.log(data);
+                });
+                //prep for first game
+                socket.on("ready", function () {
+                    app.gameState = 1;
+                    let tempText = document.getElementById("temp-text");
+                    tempText.remove();
+                    app.$nextTick(() => {
+                        let canvas = document.createElement("canvas");
+                        canvas.id = "draw-canvas";
+                        canvas.width = 1280;
+                        canvas.height = 800;
+                        document.getElementById("canvas-container").appendChild(canvas);
+                        drawInstance = new draw(app.drawToolkit);
+                    });
+                    socket.emit("askForMore", {
+                        ready: true,
+                        type: "topic"
+                    });
+                });
+                socket.on("getTopic", data=>{
+                    console.log(data);
+                    if(data){
+                        app.description = data;
+                    }else{
+                        socket.emit("askForMore", {
+                            ready: true,
+                            type: "topic"
+                        })
+                    }
+                    
+                });
+                socket.on("getDescription", data=>{
+                    app.description = data;
+                    console.log(data);
+                });
+                socket.on("getImageData",data=>{
+                    app.$nextTick(()=>{
+                        let displayingCanvas = document.createElement("canvas");
+                        let displayContext = displayingCanvas.getContext("2d");
+                        displayingCanvas.id = "display-canvas";
+                        displayingCanvas.width = 1280;
+                        displayingCanvas.height = 800;
+                        document.getElementById("describe-session").appendChild(displayingCanvas);
+                        app.parseImageData(data, displayingCanvas);
+                    })
+                    
+                })
+                socket.on("endGameSession", data => {
+                    if (data) {
+                        app.stage = 3;
+                        app.resultData = data;
+                        app.listAllItems(data);
+                    }
+                });
+            },
+            watch: {
+                drawToolkit: function (val) {
+                    drawInstance.drawType = val;
+                },
+                thisFrame: function (val) {
+                    console.log(val);
+                },
+            },
+        });
+        class draw {
+            constructor(kit) {
+                this.canvas = document.getElementById("draw-canvas");
+                console.log(this.canvas)
+                this.ctx = this.canvas.getContext("2d");
+                this.mouseX = 0;
+                this.mouseY = 0;
+                this.track = []; //all the points
+                this.history = []; //history of each draw's length
+                this.startDrawing = false;
+                this.mouseDown = false;
+                this.drawType = kit;
+                this.listen(); //canvas callbacks
+                this.drawSession();
+                this.clearCanvas();
+                this.lastDrawLength = 0;
+            }
+            //click check, then move callback, mouseup detection
+            listen() {
+                this.canvas.addEventListener("mousedown", (e) => {
+                    this.mouseDown = true;
+                    console.log(window.devicePixelRatio);
+                    let rect = this.canvas.getBoundingClientRect();
+                    this.mouseX = e.clientX - rect.left;
+                    this.mouseY = e.clientY - rect.top;
+                    console.log("mouse pressed!");
+                });
+                this.canvas.addEventListener("mouseup", () => {
+                    if (this.mouseDown) {
+                        this.stopDrawing();
+                        this.mouseDown = false;
+                    }
+                    console.log("mouse released!");
+                });
+                this.canvas.addEventListener("mouseleave", () => {
+                    console.log("mouse left canvas!");
+                    // console.log(pixelBarSliderShown)
+                    this.stopDrawing();
+                });
+                this.canvas.addEventListener("mousemove", (e) => {
+                    let temp = [];
+                    if (this.mouseDown) {
+                        this.mouseX = e.offsetX;
+                        this.mouseY = e.offsetY;
+                        console.log(this.mouseX, this.mouseY);
+                        temp.push(
+                            this.mouseX,
+                            this.mouseY,
+                            this.drawType.color,
+                            this.drawType.weight,
+                            this.drawType.drawType,
+                            false
+                        ); //[posX, posY, color, weight,lineStyle, isEnd?] offset = 6
+                        this.drawSession(temp);
+                        console.log(temp);
+                        this.startDrawing = true;
+                    } else {
+                        this.stopDrawing();
+                    }
+                });
+            }
+            stopDrawing() {
+                this.startDrawing = false;
+                if (this.lastDrawLength != 0) {
+                    this.history.push(this.lastDrawLength);
+                    this.track[eval(this.history.join("+")) - 1][5] = true; //mark the end point
+                }
+                this.lastDrawLength = 0; //reset after stop
+            }
+            drawSession(data) {//this passes in single point
+                if (data) {
+                    //prevent push undefines
+                    this.track.push(data);
+                    console.log(this.track);
+                    this.lastDrawLength++; //calc this time drawing points, update when this draw ends
+                    for (let i = 0; i < this.track.length; i++) {
+                        this.ctx.strokeStyle = this.track[i][2];
+                        this.ctx.lineWidth = this.track[i][3];
+                        switch (this.track[i][4]) {
+                            case "round":
+                                this.ctx.lineCap = "round";
+                                console.log(this.ctx.lineCap);
+                                break;
+                            case "square":
+                                this.ctx.lineCap = "butt";
+                                break;
+                            case "eraser":
+                                this.ctx.strokeStyle = "#FFFFFF";
+                                break;
+                            default:
+                                this.ctx.lineCap = "square";
+                                break;
+                        }
+                        //FIXME: figure out why seperate traces are still attached
+                        if (i > 0) {
+                            // skip the first point, would not make any diff
+                            if (!this.track[i][5]) {
+                                this.ctx.beginPath();
+                                console.log(this.drawType.weight);
+                                //previous point
+                                this.ctx.lineTo(this.track[i][0], this.track[i][1]);
+                                this.ctx.moveTo(this.track[i - 1][0], this.track[i - 1][1]);
+                                this.ctx.stroke();
+                                this.ctx.closePath();
+                            } else if (this.track[i][5] && i < this.track.length - 2) {
+                                //break point
+                                this.ctx.lineTo(this.track[i][0], this.track[i][1]);
+                                //take this out
+                                // this.ctx.moveTo(this.track[i + 1][0], this.track[i + 1][1]);
+                                this.ctx.stroke();
+                                this.ctx.closePath();
+                            }
+                        }
+                    }
+                }
+            }
+            //when data needs to be send, use this to get access to the data in Vue comp
+            getCanvasInfo(data) {
+                data = this.track;
+                return data;
+            }
+            clearCanvas() {
+                this.ctx.fillStyle = "#fff";
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                this.track = []; //this will cause error
+                this.history = [];
+                console.log("canvas cleared!");
+            }
+        }
+    </script>
+</body>
+
+</html>
